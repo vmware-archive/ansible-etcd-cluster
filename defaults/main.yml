@@ -1,0 +1,4 @@
+---
+# defaults file for ansible-etcd-cluster
+etcd_service: "etcd2.service"
+etcd_dropin_dir: "/etc/systemd/system/{{etcd_service}}.d/"

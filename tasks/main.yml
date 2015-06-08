@@ -1,0 +1,23 @@
+---
+# tasks file for ansible-etcd-cluster
+- name: create drop-in directory
+  file: path={{etcd_dropin_dir}} state=directory mode=0755
+  sudo: yes
+  sudo_user: root
+
+- name: Set initial conf
+  sudo: yes
+  sudo_user: root
+  template: src=10-peers.conf.j2 dest={{etcd_dropin_dir}}/10-peers.conf
+  register: etcd_dropin
+
+- name: reload systemd
+  sudo: yes
+  sudo_user: root
+  shell: systemctl daemon-reload
+  when: etcd_dropin.changed
+
+- name: Start etcd nodes
+  service: name={{etcd_service}} state=started
+  sudo: yes
+  sudo_user: root
