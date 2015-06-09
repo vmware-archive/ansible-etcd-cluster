@@ -7,3 +7,4 @@ etcd_ca_host: ""
 etcd_ca_depot: ""
 
 etcd_certs_root: "/etc/ssl/etcd"
+local_certs: "certs"
