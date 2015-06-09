@@ -1,6 +1,6 @@
 ---
 # tasks file for ansible-etcd-cluster
-- name: create drop-in directory
+- name: Create drop-in directory
   file: path={{etcd_dropin_dir}} state=directory mode=0755
   sudo: yes
   sudo_user: root
@@ -30,7 +30,7 @@
   register: etcd_certs_dropin
   when: etcd_ca_host and etcd_ca_depot
 
-- name: reload systemd
+- name: Reload systemd
   sudo: yes
   sudo_user: root
   shell: systemctl daemon-reload
