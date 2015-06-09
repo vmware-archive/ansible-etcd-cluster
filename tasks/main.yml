@@ -5,17 +5,36 @@
   sudo: yes
   sudo_user: root
 
-- name: Set initial conf
+- name: Set peers conf
   sudo: yes
   sudo_user: root
   template: src=10-peers.conf.j2 dest={{etcd_dropin_dir}}/10-peers.conf
-  register: etcd_dropin
+  register: etcd_peers_dropin
+
+- name: Push ca.crt
+  sudo: yes
+  sudo_user: root
+  copy: src={{local_certs}}/{{etcd_ca_host}}/{{etcd_ca_depot}}/ca.crt dest={{etcd_certs_root}}/
+  when: etcd_ca_host and etcd_ca_depot
+
+- name: Uncompress certificates
+  sudo: yes
+  sudo_user: root
+  unarchive: src={{local_certs}}/{{etcd_ca_host}}/{{etcd_ca_depot}}/{{inventory_hostname}}.tar dest={{etcd_certs_root}}
+  when: etcd_ca_host and etcd_ca_depot
+
+- name: Set certificate conf
+  sudo: yes
+  sudo_user: root
+  template: src=20-certs.conf.j2 dest={{etcd_dropin_dir}}/20-certs.conf
+  register: etcd_certs_dropin
+  when: etcd_ca_host and etcd_ca_depot
 
 - name: reload systemd
   sudo: yes
   sudo_user: root
   shell: systemctl daemon-reload
-  when: etcd_dropin.changed
+  when: etcd_peers_dropin.changed or etcd_certs_dropin.changed
 
 - name: Start etcd nodes
   service: name={{etcd_service}} state=started

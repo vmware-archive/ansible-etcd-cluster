@@ -1,0 +1,9 @@
+[Service]
+# Client Env Vars
+Environment=ETCD_CA_FILE={{etcd_certs_root}}/ca.crt
+Environment=ETCD_CERT_FILE={{etcd_certs_root}}/{{inventory_hostname}}.crt
+Environment=ETCD_KEY_FILE={{etcd_certs_root}}/{{inventory_hostname}}.key.insecure
+# Peer Env Vars
+Environment=ETCD_PEER_CA_FILE={{etcd_certs_root}}/ca.crt
+Environment=ETCD_PEER_CERT_FILE={{etcd_certs_root}}/{{inventory_hostname}}.crt
+Environment=ETCD_PEER_KEY_FILE={{etcd_certs_root}}/{{inventory_hostname}}.key.insecure
