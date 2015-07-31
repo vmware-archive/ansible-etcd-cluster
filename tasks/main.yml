@@ -1,6 +1,6 @@
 ---
 # tasks file for ansible-etcd-cluster
-- name: Create drop-in directory
+- name: Create systemd drop-in directory
   file: path={{etcd_dropin_dir}} state=directory mode=0755
   sudo: yes
   sudo_user: root
@@ -23,6 +23,12 @@
   unarchive: src={{local_certs}}/{{etcd_ca_host}}/{{etcd_ca_depot}}/{{inventory_hostname}}.tar dest={{etcd_certs_root}}
   when: etcd_ca_host and etcd_ca_depot
 
+- name: Add etcd-install unit
+  sudo: yes
+  sudo_user: root
+  template: src=etcd-install.service dest=/etc/systemd/system/etcd-install.service
+  register: etcd_install
+
 - name: Set certificate conf
   sudo: yes
   sudo_user: root
@@ -34,9 +40,15 @@
   sudo: yes
   sudo_user: root
   shell: systemctl daemon-reload
-  when: etcd_peers_dropin.changed or etcd_certs_dropin.changed
+  when: etcd_peers_dropin.changed or etcd_certs_dropin.changed or etcd_install.changed
+
+- name: Enable etcd nodes
+  service: name=etcd-install.service enabled=yes
+  sudo: yes
+  sudo_user: root
+  when: etcd_install.changed
 
 - name: Start etcd nodes
-  service: name={{etcd_service}} state=started
+  service: name=etcd-install.service state=started
   sudo: yes
   sudo_user: root
