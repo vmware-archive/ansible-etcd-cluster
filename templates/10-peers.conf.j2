@@ -1,16 +1,22 @@
 {% set proto = "https" if etcd_ca_host else "http" %}
 {% set my_ip = ansible_default_ipv4.address -%}
 {% set all_etcd = [] -%}
-{% for host in play_hosts -%}
+{% set core_hosts = play_hosts if etcd_core_group == "" else groups[etcd_core_group] %}
+{% for host in core_hosts -%}
   {% set other_ip = hostvars[host]['ansible_default_ipv4']['address'] -%}
   {% set _ = all_etcd.append("%s=%s://%s:2380" % (host, proto, other_ip)) -%}
 {% endfor -%}
 [Service]
+Environment=ETCD_INITIAL_CLUSTER={{all_etcd|join(',')}}
+{% if inventory_hostname in core_hosts %}
 Environment=ETCD_NAME={{inventory_hostname}}
+Environment=ETCD_INITIAL_CLUSTER_STATE=new
+Environment=ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster
 Environment=ETCD_INITIAL_ADVERTISE_PEER_URLS={{proto}}://{{my_ip}}:2380
 Environment=ETCD_LISTEN_PEER_URLS={{proto}}://{{my_ip}}:2380
 Environment=ETCD_LISTEN_CLIENT_URLS={{proto}}://{{my_ip}}:2379,http://127.0.0.1:2379,http://172.17.42.1:2379
 Environment=ETCD_ADVERTISE_CLIENT_URLS={{proto}}://{{my_ip}}:2379
-Environment=ETCD_INITIAL_CLUSTER={{all_etcd|join(',')}}
-Environment=ETCD_INITIAL_CLUSTER_STATE=new
-Environment=ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster
+{% else %}
+Environment=ETCD_LISTEN_CLIENT_URLS=http://127.0.0.1:2379,http://172.17.42.1:2379
+Environment=ETCD_PROXY=on
+{% endif %}
