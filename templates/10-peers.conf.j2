@@ -7,6 +7,7 @@
   {% set _ = all_etcd.append("%s=%s://%s:2380" % (host, proto, other_ip)) -%}
 {% endfor -%}
 [Service]
+Environment=ETCD_LISTEN_CLIENT_URLS={{proto}}://0.0.0.0:2379
 Environment=ETCD_INITIAL_CLUSTER={{all_etcd|join(',')}}
 {% if inventory_hostname in core_hosts %}
 Environment=ETCD_NAME={{inventory_hostname}}
@@ -14,9 +15,7 @@ Environment=ETCD_INITIAL_CLUSTER_STATE=new
 Environment=ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster
 Environment=ETCD_INITIAL_ADVERTISE_PEER_URLS={{proto}}://{{my_ip}}:2380
 Environment=ETCD_LISTEN_PEER_URLS={{proto}}://{{my_ip}}:2380
-Environment=ETCD_LISTEN_CLIENT_URLS={{proto}}://{{my_ip}}:2379,http://127.0.0.1:2379,http://172.17.42.1:2379
 Environment=ETCD_ADVERTISE_CLIENT_URLS={{proto}}://{{my_ip}}:2379
 {% else %}
-Environment=ETCD_LISTEN_CLIENT_URLS=http://127.0.0.1:2379,http://172.17.42.1:2379
 Environment=ETCD_PROXY=on
 {% endif %}

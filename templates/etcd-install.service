@@ -1,6 +1,6 @@
 [Unit]
-Requires={{etcd_service}} docker.service
-After={{etcd_service}} docker.service
+Requires={{etcd_service}}
+After={{etcd_service}}
 
 [Service]
 ExecStart=/usr/bin/sleep infinity
