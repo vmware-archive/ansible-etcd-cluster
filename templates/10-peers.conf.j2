@@ -1,4 +1,4 @@
-{% set proto = "https" if etcd_ca_host else "http" %}
+{% set proto = "https" if etcd_ca_setup else "http" %}
 {% set my_ip = ansible_default_ipv4.address -%}
 {% set all_etcd = [] -%}
 {% set core_hosts = play_hosts if etcd_core_group == "" else groups[etcd_core_group] %}
