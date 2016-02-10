@@ -1,9 +1,0 @@
-[Unit]
-Requires={{etcd_service}}
-After={{etcd_service}}
-
-[Service]
-ExecStart=/usr/bin/sleep infinity
-
-[Install]
-WantedBy=multi-user.target
