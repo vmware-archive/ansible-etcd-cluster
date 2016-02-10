@@ -3,7 +3,7 @@ etcd-cluster
 
 Setup an etcd cluster spanning all hosts in the current play.
 
-Current version: 0.0.6
+Current version: 0.1.0
 
 Role Variables
 --------------
