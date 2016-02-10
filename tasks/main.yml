@@ -3,52 +3,34 @@
 - name: Create systemd drop-in directory
   file: path={{etcd_dropin_dir}} state=directory mode=0755
   sudo: yes
-  sudo_user: root
 
 - name: Set peers conf
   sudo: yes
-  sudo_user: root
   template: src=10-peers.conf.j2 dest={{etcd_dropin_dir}}/10-peers.conf
-  register: etcd_peers_dropin
+  notify:
+    - Reload systemd
 
 - name: Push ca.crt
   sudo: yes
-  sudo_user: root
   copy: src={{local_certs}}/{{etcd_ca_host}}/{{etcd_ca_depot}}/ca.crt dest={{etcd_certs_root}}/
   when: etcd_ca_setup
 
 - name: Uncompress certificates
   sudo: yes
-  sudo_user: root
   unarchive: src={{local_certs}}/{{etcd_ca_host}}/{{etcd_ca_depot}}/{{inventory_hostname}}.tar dest={{etcd_certs_root}}
   when: etcd_ca_setup
 
-- name: Add etcd-install unit
+- name: Install etcd unit
   sudo: yes
-  sudo_user: root
-  template: src=etcd-install.service dest=/etc/systemd/system/etcd-install.service
+  shell: systemctl add-wants multi-user.target {{etcd_service}}
   register: etcd_install
+  changed_when: "'Created symlink' in etcd_install.stdout"
+  notify:
+    - Reload systemd
 
 - name: Set certificate conf
   sudo: yes
-  sudo_user: root
   template: src=20-certs.conf.j2 dest={{etcd_dropin_dir}}/20-certs.conf
-  register: etcd_certs_dropin
   when: etcd_ca_setup
-
-- name: Reload systemd
-  sudo: yes
-  sudo_user: root
-  shell: systemctl daemon-reload
-  when: etcd_peers_dropin.changed or etcd_certs_dropin.changed or etcd_install.changed
-
-- name: Enable etcd nodes
-  service: name=etcd-install.service enabled=yes
-  sudo: yes
-  sudo_user: root
-  when: etcd_install.changed
-
-- name: Start etcd nodes
-  service: name=etcd-install.service state=started
-  sudo: yes
-  sudo_user: root
+  notify:
+    - Reload systemd

@@ -1,0 +1,9 @@
+---
+- name: Reload systemd
+  sudo: yes
+  command: systemctl daemon-reload
+  notify: Restart etcd
+
+- name: Restart etcd
+  service: name={{etcd_service}} state=restarted
+  sudo: yes
