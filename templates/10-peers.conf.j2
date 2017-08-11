@@ -1,10 +1,12 @@
 {% set proto = "https" if etcd_ca_setup else "http" %}
 {% set my_ip = ansible_default_ipv4.address -%}
 {% set all_etcd = [] -%}
-{% set core_hosts = play_hosts if etcd_core_group == "" else groups[etcd_core_group] %}
+{% set all_etcd_endpoints = [] -%}
+{% set core_hosts = ansible_play_hosts if etcd_core_group == "" else groups[etcd_core_group] %}
 {% for host in core_hosts -%}
   {% set other_ip = hostvars[host]['ansible_default_ipv4']['address'] -%}
   {% set _ = all_etcd.append("%s=%s://%s:2380" % (host, proto, other_ip)) -%}
+  {% set _ = all_etcd_endpoints.append("%s:2379" % (other_ip)) -%}
 {% endfor -%}
 [Service]
 Environment=ETCD_IMAGE_URL={{etcd_image_url}}
@@ -19,5 +21,5 @@ Environment=ETCD_INITIAL_ADVERTISE_PEER_URLS={{proto}}://{{my_ip}}:2380
 Environment=ETCD_LISTEN_PEER_URLS={{proto}}://{{my_ip}}:2380
 Environment=ETCD_ADVERTISE_CLIENT_URLS={{proto}}://{{my_ip}}:2379
 {% else %}
-Environment=ETCD_PROXY=on
+Environment=ETCD_OPTS="gateway start --listen-addr=0.0.0.0:2379 --endpoints={{ all_etcd_endpoints|join(',') }}"
 {% endif %}
