@@ -2,26 +2,26 @@
 # tasks file for ansible-etcd-cluster
 - name: Create systemd drop-in directory
   file: path={{etcd_dropin_dir}} state=directory mode=0755
-  sudo: yes
+  become: yes
 
 - name: Set peers conf
-  sudo: yes
+  become: yes
   template: src=10-peers.conf.j2 dest={{etcd_dropin_dir}}/10-peers.conf
   notify:
     - Reload systemd
 
 - name: Push ca.crt
-  sudo: yes
+  become: yes
   copy: src={{local_certs}}/{{etcd_ca_host}}/{{etcd_ca_depot}}/ca.crt dest={{etcd_certs_root}}/
   when: etcd_ca_setup
 
 - name: Uncompress certificates
-  sudo: yes
+  become: yes
   unarchive: src={{local_certs}}/{{etcd_ca_host}}/{{etcd_ca_depot}}/{{inventory_hostname}}.tar dest={{etcd_certs_root}}
   when: etcd_ca_setup
 
 - name: Install etcd unit
-  sudo: yes
+  become: yes
   shell: systemctl add-wants multi-user.target {{etcd_service}}
   register: etcd_install
   changed_when: "'Created symlink' in etcd_install.stdout + etcd_install.stderr"
@@ -29,7 +29,7 @@
     - Reload systemd
 
 - name: Set certificate conf
-  sudo: yes
+  become: yes
   template: src=20-certs.conf.j2 dest={{etcd_dropin_dir}}/20-certs.conf
   when: etcd_ca_setup
   notify:
