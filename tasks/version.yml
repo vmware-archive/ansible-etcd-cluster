@@ -1,0 +1,11 @@
+---
+- include_tasks: vars.yml
+
+- name: Get etcd version
+  become: yes
+  command: >
+    {{ etcdctl_cmd_v2 }} -v
+  register: etcdctl
+
+- set_fact:
+    etcd_version: "{{ etcdctl.stdout | regex_replace('etcdctl version: (.*)\n.*', '\\1') }}"

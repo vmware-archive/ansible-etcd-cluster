@@ -1,0 +1,30 @@
+---
+- include_tasks: vars.yml
+
+- name: Check available disk space for etcd backup
+  shell: df --output=avail -k {{ etcd_data_dir }} | tail -n 1
+  register: avail_disk
+
+- name: Check current etcd disk usage
+  become: yes
+  shell: du --exclude='*backup*' -k {{ etcd_data_dir }} | tail -n 1 | cut -f1
+  register: etcd_disk_usage
+
+- name: Abort if insufficient disk space for etcd backup
+  fail:
+    msg: >
+      {{ etcd_disk_usage.stdout|int*2 }} Kb disk space required for etcd backup,
+      {{ avail_disk.stdout }} Kb available.
+  when: etcd_disk_usage.stdout|int*2 > avail_disk.stdout|int
+
+- name: Generate etcd backup (v2 data)
+  become: yes
+  # https://github.com/coreos/etcd/blob/master/Documentation/v2/admin_guide.md#disaster-recovery
+  command: >
+    {{ etcdctl_cmd_v2 }} backup --data-dir={{ etcd_data_dir }} --backup-dir={{ etcd_backup_dir }}
+
+- name: Snapshot the v3 keyspace
+  become: yes
+  # https://github.com/coreos/etcd/blob/master/Documentation/op-guide/maintenance.md#snapshot-backup
+  command: >
+    {{ etcdctl_cmd_v3 }} snapshot save {{ etcd_backup_dir }}/member/snap/db
