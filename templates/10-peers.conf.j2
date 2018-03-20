@@ -11,6 +11,7 @@
 [Service]
 Environment=ETCD_IMAGE_URL={{etcd_image_url}}
 Environment=ETCD_IMAGE_TAG={{etcd_image_tag}}
+Environment=ETCD_DATA_DIR={{etcd_data_dir}}
 Environment=ETCD_LISTEN_CLIENT_URLS={{proto}}://0.0.0.0:2379
 Environment=ETCD_INITIAL_CLUSTER={{all_etcd|join(',')}}
 {% if inventory_hostname in core_hosts %}

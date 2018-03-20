@@ -14,3 +14,6 @@ etcd_core_group: ""
 etcd_image_url: "quay.io/coreos/etcd"
 etcd_image_tag: "v3.1.0"
 
+etcd_data_dir: "/var/lib/etcd"
+etcd_backup_tag: ""
+etcd_backup_suffix: ""
