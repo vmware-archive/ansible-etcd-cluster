@@ -1,0 +1,67 @@
+---
+- block:
+  - name: Find backup directories
+    find:
+      paths: "{{ etcd_data_dir }}"
+      patterns: "{{ etcd_backup_prefix }}{{ etcd_backup_tag }}*"
+      file_type: directory
+    register: backups
+
+  - fail:
+      msg: "No backup directories found and etcd_latest_backup_dir is also not set"
+    when:
+      - backups.files|length == 0
+
+  - name: Set latest backup directory
+    set_fact:
+      etcd_latest_backup_dir: "{{ backups.files | sort(attribute='mtime', reverse=true) | map(attribute='path') | first }}"
+  when: etcd_latest_backup_dir is undefined
+
+- stat: path="{{ etcd_latest_backup_dir }}"
+  register: backup_dir
+  failed_when: not backup_dir.stat.exists
+
+- include_tasks: truncate_member_dir.yml
+
+- name: Copy v2 and v3 data stores from backup
+  become: yes
+  command: "cp -a {{ etcd_latest_backup_dir }}/member {{ etcd_data_dir }}"
+
+- name: Set {{ etcd_force_new_cluster_env_var }} variable
+  become: yes
+  lineinfile:
+    path: "{{etcd_dropin_dir}}/10-peers.conf"
+    line: "{{etcd_force_new_cluster_env_var}}"
+  changed_when: True
+  notify:
+    - Reload systemd
+
+- meta: flush_handlers
+
+- include_tasks: get_member_list.yml
+
+- set_fact: single_member={{ members.json["members"] }}
+
+- fail:
+    msg: "Single node cluster did not start successfully"
+  when:
+    - single_member | length != 1 # Only one member present
+    - single_member[0]['peerURLs'] != 'http://localhost:2380' # peerURL is pointing to localhost
+
+- name: Remove the {{ etcd_force_new_cluster_env_var }} variable
+  become: yes
+  lineinfile:
+    path: "{{etcd_dropin_dir}}/10-peers.conf"
+    line: "{{etcd_force_new_cluster_env_var}}"
+    state: absent
+  changed_when: True
+  notify:
+    - Reload systemd
+
+- meta: flush_handlers
+
+- name: Update peerURL with public IP
+  become: yes
+  command: >
+    etcdctl member update
+    {{ single_member[0]["id"] }} http://{{ ansible_default_ipv4.address }}:2380

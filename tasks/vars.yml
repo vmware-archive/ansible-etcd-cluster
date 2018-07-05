@@ -1,7 +1,7 @@
 ---
 # Set etcd backup directory
 - set_fact:
-    backup_dir_name: "etcd-backup-{{ etcd_backup_tag }}{{ etcd_backup_suffix }}"
+    backup_dir_name: "{{ etcd_backup_prefix }}{{ etcd_backup_tag }}{{ etcd_backup_suffix }}"
 
 - set_fact:
     etcd_backup_dir: "{{ etcd_data_dir }}/{{ backup_dir_name }}"

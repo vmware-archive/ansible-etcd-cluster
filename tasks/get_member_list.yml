@@ -1,0 +1,10 @@
+---
+- name: Get etcd member list
+  uri:
+    url: "http://localhost:2379/v2/members"
+    return_contents: yes
+  register: members
+  retries: 30
+  delay: 5
+  until: members.failed is not defined
+  changed_when: false

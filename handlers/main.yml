@@ -6,4 +6,5 @@
 
 - name: Restart etcd
   service: name={{etcd_service}} state=restarted
+  ignore_errors: "{{ ignore_etcd_restart_errors }}"
   become: yes

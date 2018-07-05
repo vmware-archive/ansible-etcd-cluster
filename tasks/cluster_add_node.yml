@@ -1,0 +1,30 @@
+---
+- debug: msg="Adding {{ inventory_hostname }} to cluster"
+
+- include_tasks: truncate_member_dir.yml
+
+- name: Bootstrap node {{ ansible_default_ipv4.address }} to join existing cluster
+  become: yes
+  template: src=10-peers.conf.j2 dest={{etcd_dropin_dir}}/10-peers.conf
+  vars:
+    override_etcd_hosts: "{{ peers[inventory_hostname] }}"
+    initial_cluster_state: existing
+  changed_when: True
+  notify:
+    - Reload systemd
+
+- meta: flush_handlers
+
+- name: Add {{ ansible_default_ipv4.address }} as a cluster member
+  command: "etcdctl member add {{ inventory_hostname }} {{ etcd_ca_setup | ternary('https', 'http') }}://{{ ansible_default_ipv4.address }}:2380"
+  delegate_to: "{{ node1 }}"
+  register: result
+  until: result.rc == 0 # When cluster has no leader, add member command would fail. Retry a few times.
+  retries: 10
+  delay: 5
+
+- include_tasks: get_member_list.yml
+
+- fail:
+    msg: "Failed to add {{ ansible_default_ipv4.address }} as a cluster member"
+  when: inventory_hostname not in members.json|json_query('members[*].name')
