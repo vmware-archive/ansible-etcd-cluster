@@ -3,6 +3,7 @@
 {% set all_etcd = [] -%}
 {% set all_etcd_endpoints = [] -%}
 {% set core_hosts = ansible_play_hosts if etcd_core_group == "" else groups[etcd_core_group] %}
+{% set core_hosts = override_etcd_hosts if override_etcd_hosts is defined else core_hosts %}
 {% for host in core_hosts -%}
   {% set other_ip = hostvars[host]['ansible_default_ipv4']['address'] -%}
   {% set _ = all_etcd.append("%s=%s://%s:2380" % (host, proto, other_ip)) -%}
@@ -16,7 +17,7 @@ Environment=ETCD_LISTEN_CLIENT_URLS={{proto}}://0.0.0.0:2379
 Environment=ETCD_INITIAL_CLUSTER={{all_etcd|join(',')}}
 {% if inventory_hostname in core_hosts %}
 Environment=ETCD_NAME={{inventory_hostname}}
-Environment=ETCD_INITIAL_CLUSTER_STATE=new
+Environment=ETCD_INITIAL_CLUSTER_STATE={{initial_cluster_state}}
 Environment=ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster
 Environment=ETCD_INITIAL_ADVERTISE_PEER_URLS={{proto}}://{{my_ip}}:2380
 Environment=ETCD_LISTEN_PEER_URLS={{proto}}://{{my_ip}}:2380

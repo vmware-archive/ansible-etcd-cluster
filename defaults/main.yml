@@ -12,8 +12,19 @@ local_certs: "certs"
 etcd_core_group: ""
 
 etcd_image_url: "quay.io/coreos/etcd"
-etcd_image_tag: "v3.1.0"
+etcd_image_tag: "v3.3.1"
+
+initial_cluster_state: "new"
 
 etcd_data_dir: "/var/lib/etcd"
 etcd_backup_tag: ""
 etcd_backup_suffix: ""
+etcd_backup_prefix: "etcd-backup-"
+skip_pre_restore_backup: false
+etcd_force_new_cluster_env_var: "Environment=ETCD_FORCE_NEW_CLUSTER=true"
+
+# ignore errors when etcd-member service restart fails. This var will be set to
+# true while adding node to an existing cluster; `systemctl restart etcd-member`
+# would fail (and retry) till the node is added to the cluster using the
+# `etcdctl member add` command
+ignore_etcd_restart_errors: false
