@@ -1,28 +1,40 @@
 ---
-# Set etcd backup directory
-- set_fact:
-    backup_dir_name: "etcd-backup-{{ etcd_backup_tag }}{{ etcd_backup_suffix }}"
+- name: Set backup_name fact
+  set_fact:
+    backup_name: "{{ inventory_file | basename }}-{{ etcd_backup_node_name.split('.')[0] }}-{{ etcd_backup_tag }}{{ etcd_backup_suffix }}"
 
-- set_fact:
-    etcd_backup_dir: "{{ etcd_data_dir }}/{{ backup_dir_name }}"
+- name: Set etcd_backup_archive_file fact
+  set_fact:
+    etcd_backup_archive_file: "{{ backup_name }}.tgz"
 
-- name: Get rkt pod list
-  command: rkt list --format=json
-  register: rktlist
+- name: Set etcd_backup_remote_dir fact
+  set_fact:
+    etcd_backup_remote_dir: "{{ etcd_backup_remote_root_dir }}/{{ inventory_file | basename }}"
 
-- name: Get etcd pod(s)
-  set_fact: etcd_pods="{{ rktlist.stdout | from_json | json_query(etcd_pods_query) }}"
-  vars:
-    etcd_pods_query: "[?state=='running' && contains(app_names, 'etcd')].name"
+- block:
+    - name: Set etcd_backup_dir fact
+      set_fact:
+        etcd_backup_dir: "{{ etcd_backup_local_root_dir }}/{{ backup_name }}"
 
-- fail:
-    msg: "Failed finding a single running etcd pod"
-  when:
-    - etcd_pods|length != 1
-
-- set_fact:
-    etcd_pod_id: "{{ etcd_pods[0] }}"
-
-- set_fact:
-    etcdctl_cmd_v2: "{{ 'rkt enter ' + etcd_pod_id + ' /usr/local/bin/etcdctl' }}"
-    etcdctl_cmd_v3: "{{ 'rkt enter ' + etcd_pod_id + ' /usr/bin/env ETCDCTL_API=3 /usr/local/bin/etcdctl' }}"
+    - name: Get rkt pod list
+      command: rkt list --format=json
+      register: rktlist
+    
+    - name: Get etcd pod(s)
+      set_fact: etcd_pods="{{ rktlist.stdout | from_json | json_query(etcd_pods_query) }}"
+      vars:
+        etcd_pods_query: "[?state=='running' && contains(app_names, 'etcd')].name"
+    
+    - name: Abort if a single etcd rkt pod is not running
+      fail:
+        msg: "Failed finding a single running etcd pod"
+      when: (etcd_pods | length) != 1
+    
+    - name: Set etcd_pod_id fact
+      set_fact:
+        etcd_pod_id: "{{ etcd_pods[0] }}"
+    
+    - name: Set etcdctl_cmd_v3 fact
+      set_fact:
+        etcdctl_cmd_v3: "{{ 'rkt enter ' + etcd_pod_id + ' /usr/bin/env ETCDCTL_API=3 /usr/local/bin/etcdctl' }}"
+  when: inventory_hostname == etcd_backup_node_name

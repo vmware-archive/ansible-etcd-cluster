@@ -1,30 +1,128 @@
 ---
 - include_tasks: vars.yml
 
-- name: Check available disk space for etcd backup
-  shell: df --output=avail -k {{ etcd_data_dir }} | tail -n 1
-  register: avail_disk
+- name: Make sure etcd backup local root directory {{ etcd_backup_local_root_dir }} exists and has correct permissions
+  become: yes
+  file:
+    path: "{{ etcd_backup_local_root_dir }}"
+    state: directory
+    owner: etcd
+    group: root
+    mode: 0700
+
+- name: Check available disk space for local etcd backup
+  shell: df --output=avail -k {{ etcd_backup_local_root_dir }} | tail -n 1
+  register: local_avail_disk_space
+
+- name: Check available disk space for remote etcd backup
+  local_action: shell df --output=avail -k {{ etcd_backup_remote_root_dir  }} | tail -n 1
+  register: remote_avail_disk_space
 
 - name: Check current etcd disk usage
   become: yes
-  shell: du --exclude='*backup*' -k {{ etcd_data_dir }} | tail -n 1 | cut -f1
+  shell: du -k {{ etcd_data_dir }}/member | tail -n 1 | cut -f1
   register: etcd_disk_usage
 
-- name: Abort if insufficient disk space for etcd backup
+- name: Abort if insufficient disk space for local etcd backup
   fail:
     msg: >
-      {{ etcd_disk_usage.stdout|int*2 }} Kb disk space required for etcd backup,
-      {{ avail_disk.stdout }} Kb available.
-  when: etcd_disk_usage.stdout|int*2 > avail_disk.stdout|int
+      {{ etcd_disk_usage.stdout | int * 2 }} KB disk space required for local etcd backup, but 
+      {{ local_avail_disk_space.stdout }} KB available.
+  when: (etcd_disk_usage.stdout | int * 2) > (local_avail_disk_space.stdout | int)
 
-- name: Generate etcd backup (v2 data)
-  become: yes
-  # https://github.com/coreos/etcd/blob/master/Documentation/v2/admin_guide.md#disaster-recovery
-  command: >
-    {{ etcdctl_cmd_v2 }} backup --data-dir={{ etcd_data_dir }} --backup-dir={{ etcd_backup_dir }}
+- name: Abort if insufficient disk space for remote etcd backup
+  fail:
+    msg: >
+      {{ etcd_disk_usage.stdout | int * 2 }} KB disk space required for remote etcd backup, but 
+      {{ remote_avail_disk_space.stdout }} KB available.
+  when: (etcd_disk_usage.stdout | int * 2) > (remote_avail_disk_space.stdout | int)
 
-- name: Snapshot the v3 keyspace
+- block:
+    - name: Make sure etcd backup remote directory {{ etcd_backup_remote_dir }} exists and has correct permissions
+      local_action: file
+      args:
+        path: "{{ etcd_backup_remote_dir }}"
+        state: directory
+        mode: 0755
+    
+    - name: Create local etcd backup directory {{ etcd_backup_dir }} and set correct permissions
+      become: yes
+      file:
+        path: "{{ etcd_backup_dir }}"
+        state: directory
+        owner: etcd
+        group: root
+        mode: 0700
+    
+    - name: Create etcd v3 data backup file
+      become: yes
+      # https://coreos.com/etcd/docs/latest/op-guide/recovery.html
+      command: >
+        {{ etcdctl_cmd_v3 }} snapshot save {{ etcd_backup_dir }}/db
+    
+    - name: Archive etcd backup directory {{ etcd_backup_dir }} into a compressed tar.gz file
+      become: yes
+      archive:
+        path: "{{ etcd_backup_dir }}"
+        dest: "{{ etcd_backup_local_root_dir }}/{{ etcd_backup_archive_file }}"
+        owner: etcd
+        group: root
+        mode: 0600
+    
+    - name: Delete no longer needed etcd backup directory {{ etcd_backup_dir }}
+      become: yes
+      file:
+        path: "{{ etcd_backup_dir }}"
+        state: absent
+    
+    - name: Sync etcd backup file {{ etcd_backup_archive_file }} from {{ etcd_backup_node_name }} to localhost
+      become: yes
+      synchronize:
+        mode: pull
+        src: "{{ etcd_backup_local_root_dir }}/{{ etcd_backup_archive_file }}"
+        dest: "{{ etcd_backup_remote_dir }}"
+  when: inventory_hostname == etcd_backup_node_name
+
+- block:
+    - name: Sync etcd backup file {{ etcd_backup_archive_file }} from localhost to all etcd nodes except {{ etcd_backup_node_name }}
+      synchronize:
+        src: "{{ etcd_backup_remote_dir }}/{{ etcd_backup_archive_file }}"
+        dest: "{{ etcd_backup_local_root_dir }}"
+    
+    - name: Fix backup file {{ etcd_backup_archive_file }} ownership on all etcd nodes except {{ etcd_backup_node_name }}
+      file:
+        path: "{{ etcd_backup_local_root_dir }}/{{ etcd_backup_archive_file }}"
+        owner: etcd
+        group: root
   become: yes
-  # https://github.com/coreos/etcd/blob/master/Documentation/op-guide/maintenance.md#snapshot-backup
-  command: >
-    {{ etcdctl_cmd_v3 }} snapshot save {{ etcd_backup_dir }}/member/snap/db
+  when: inventory_hostname != etcd_backup_node_name
+
+- name: Get local backup files list
+  become: yes
+  find:
+    path: "{{ etcd_backup_local_root_dir }}"
+    patterns: '*.tgz'
+  register: local_backup_files
+
+- name: Delete old local backups except for the last {{ etcd_backup_keep_local_files }}
+  become: yes
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  with_items: "{{ (local_backup_files.files | sort(attribute='ctime', reverse=true))[etcd_backup_keep_local_files:] }}"
+
+- block:
+    - name: Get remote backup files list
+      local_action: find
+      args:
+        path: "{{ etcd_backup_remote_dir }}"
+        patterns: '*.tgz'
+      register: remote_backup_files
+    
+    - name: Delete old remote backups except for the last {{ etcd_backup_keep_remote_files }}
+      local_action: file
+      args:
+        path: "{{ item.path }}"
+        state: absent
+      with_items: "{{ (remote_backup_files.files | sort(attribute='ctime', reverse=true))[etcd_backup_keep_remote_files:] }}"
+  when: inventory_hostname == etcd_backup_node_name
