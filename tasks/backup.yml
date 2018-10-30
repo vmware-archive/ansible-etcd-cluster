@@ -10,6 +10,28 @@
     group: root
     mode: 0700
 
+- name: Check etcd backup remote root directory {{ etcd_backup_remote_root_dir }}
+  local_action: stat
+  args:
+    path: "{{ etcd_backup_remote_root_dir }}"
+  register: etcd_backup_remote_root_dir_check
+  run_once: true
+
+- name: Abort if etcd backup remote root directory {{ etcd_backup_remote_root_dir }} doesn't exist or is not a directory
+  fail:
+    msg: >
+       {{ etcd_backup_remote_root_dir }} either does not exist or is not a directory.
+  when: (etcd_backup_remote_root_dir_check.stat.exists == false) or
+        (etcd_backup_remote_root_dir_check.stat.isdir == false)
+  run_once: true
+
+- name: Abort if etcd backup remote root directory {{ etcd_backup_remote_root_dir }} is not writeable by the current user
+  fail:
+    msg: >
+      {{ etcd_backup_remote_root_dir }} is not writable by the current user.
+  when: etcd_backup_remote_root_dir_check.stat.writeable == false
+  run_once: true
+
 - name: Check available disk space for local etcd backup
   shell: df --output=avail -k {{ etcd_backup_local_root_dir }} | tail -n 1
   register: local_avail_disk_space
@@ -17,6 +39,7 @@
 - name: Check available disk space for remote etcd backup
   local_action: shell df --output=avail -k {{ etcd_backup_remote_root_dir  }} | tail -n 1
   register: remote_avail_disk_space
+  run_once: true
 
 - name: Check current etcd disk usage
   become: yes
@@ -26,16 +49,17 @@
 - name: Abort if insufficient disk space for local etcd backup
   fail:
     msg: >
-      {{ etcd_disk_usage.stdout | int * 2 }} KB disk space required for local etcd backup, but 
+      {{ etcd_disk_usage.stdout | int * 3 }} KB disk space required for local etcd backup, but 
       {{ local_avail_disk_space.stdout }} KB available.
-  when: (etcd_disk_usage.stdout | int * 2) > (local_avail_disk_space.stdout | int)
+  when: (etcd_disk_usage.stdout | int * 3) > (local_avail_disk_space.stdout | int)
 
 - name: Abort if insufficient disk space for remote etcd backup
   fail:
     msg: >
-      {{ etcd_disk_usage.stdout | int * 2 }} KB disk space required for remote etcd backup, but 
+      {{ etcd_disk_usage.stdout | int * 3 }} KB disk space required for remote etcd backup, but 
       {{ remote_avail_disk_space.stdout }} KB available.
-  when: (etcd_disk_usage.stdout | int * 2) > (remote_avail_disk_space.stdout | int)
+  when: (etcd_disk_usage.stdout | int * 3) > (remote_avail_disk_space.stdout | int)
+  run_once: true
 
 - block:
     - name: Make sure etcd backup remote directory {{ etcd_backup_remote_dir }} exists and has correct permissions
@@ -109,7 +133,7 @@
   file:
     path: "{{ item.path }}"
     state: absent
-  with_items: "{{ (local_backup_files.files | sort(attribute='ctime', reverse=true))[etcd_backup_keep_local_files:] }}"
+  with_items: "{{ (local_backup_files.files | sort(attribute='mtime', reverse=true))[etcd_backup_keep_local_files:] }}"
 
 - block:
     - name: Get remote backup files list
@@ -124,5 +148,5 @@
       args:
         path: "{{ item.path }}"
         state: absent
-      with_items: "{{ (remote_backup_files.files | sort(attribute='ctime', reverse=true))[etcd_backup_keep_remote_files:] }}"
+      with_items: "{{ (remote_backup_files.files | sort(attribute='mtime', reverse=true))[etcd_backup_keep_remote_files:] }}"
   when: inventory_hostname == etcd_backup_node_name
