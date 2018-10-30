@@ -1,0 +1,40 @@
+{% set proto = "https" if etcd_ca_setup else "http" %}
+{% set my_ip = ansible_default_ipv4.address -%}
+{% set all_etcd = [] -%}
+{% set core_hosts = ansible_play_hosts if etcd_core_group == "" else groups[etcd_core_group] %}
+{% for host in core_hosts -%}
+  {% set other_ip = hostvars[host]['ansible_default_ipv4']['address'] -%}
+  {% set _ = all_etcd.append("%s=%s://%s:2380" % (host, proto, other_ip)) -%}
+{% endfor -%}
+[Unit]
+Description=etcd v3 data restore
+
+[Service]
+Type=oneshot
+
+ExecStartPre=/usr/bin/mkdir -p /var/lib/coreos
+ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/lib/coreos/etcd-member-wrapper.uuid
+ExecStartPre=/usr/bin/rm -rf {{ etcd_restore_tmp_dir }}
+ExecStart=/usr/lib/coreos/etcd-wrapper $ETCD_OPTS
+ExecStop=-/usr/bin/rkt stop --uuid-file=/var/lib/coreos/etcd-member-wrapper.uuid
+ExecStartPost=/usr/bin/rm -rf {{ etcd_data_dir }}/member
+ExecStartPost=/usr/bin/mv {{ etcd_restore_tmp_dir }}/member {{ etcd_data_dir }}
+ExecStartPost=/usr/bin/chown -R etcd {{ etcd_data_dir }}/member
+ExecStartPost=/usr/bin/rm -rf {{ etcd_restore_tmp_dir }}
+
+Environment=ETCD_IMAGE_URL={{ etcd_image_url }}
+Environment=ETCD_IMAGE_TAG={{ etcd_image_tag }}
+Environment=ETCD_DATA_DIR={{ etcd_data_dir }}
+Environment=ETCD_USER=etcd
+Environment=RKT_RUN_ARGS="--uuid-file-save=/var/lib/coreos/etcd-member-wrapper.uuid"
+Environment=ETCD_IMAGE_ARGS="--insecure-options=image \
+                             --set-env ETCDCTL_API=3 --exec /usr/local/bin/etcdctl -- \
+                             snapshot restore {{ etcd_backup_latest_dir }}/db \
+                             --data-dir={{ etcd_restore_tmp_dir }} \
+                             --name={{ inventory_hostname }} \
+                             --initial-cluster={{ all_etcd | join(',') }} \
+                             --initial-cluster-token=etcd-cluster \
+                             --initial-advertise-peer-urls={{ proto }}://{{ my_ip }}:2380"
+
+[Install]
+WantedBy=multi-user.target
