@@ -22,3 +22,5 @@ etcd_backup_remote_root_dir: "/tmp"
 etcd_backup_node_name: "{{ groups['etcd'][0] }}"
 etcd_backup_keep_local_files: 5
 etcd_backup_keep_remote_files: 5
+
+etcd_restore_tmp_dir: "/var/lib/etcd/etcd-restore"
