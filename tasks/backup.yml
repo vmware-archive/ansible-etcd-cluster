@@ -102,6 +102,7 @@
     - name: Sync etcd backup file {{ etcd_backup_archive_file }} from {{ etcd_backup_node_name }} to localhost
       become: yes
       synchronize:
+        use_ssh_args: yes
         mode: pull
         src: "{{ etcd_backup_local_root_dir }}/{{ etcd_backup_archive_file }}"
         dest: "{{ etcd_backup_remote_dir }}"
@@ -110,6 +111,7 @@
 - block:
     - name: Sync etcd backup file {{ etcd_backup_archive_file }} from localhost to all etcd nodes except {{ etcd_backup_node_name }}
       synchronize:
+        use_ssh_args: yes
         src: "{{ etcd_backup_remote_dir }}/{{ etcd_backup_archive_file }}"
         dest: "{{ etcd_backup_local_root_dir }}"
     
