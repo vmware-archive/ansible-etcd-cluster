@@ -14,7 +14,7 @@ local_certs: "certs"
 etcd_core_group: ""
 
 etcd_image_url: "quay.io/coreos/etcd"
-etcd_image_tag: "v3.3.1"
+etcd_image_tag: "v3.3.13"
 
 etcd_data_dir: "/var/lib/etcd"
 
