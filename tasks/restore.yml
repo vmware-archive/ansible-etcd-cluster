@@ -26,7 +26,7 @@
   run_once: true
 
 - name: Check available disk space for etcd restore
-  shell: df --output=avail -k {{ etcd_data_dir }} | tail -n 1
+  shell: df -Pk {{ etcd_data_dir }} | tail -n 1 | awk '{print $4}'
   register: local_avail_disk_space
 
 - name: Check the uncompressed size of etcd backup

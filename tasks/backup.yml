@@ -33,11 +33,11 @@
   run_once: true
 
 - name: Check available disk space for local etcd backup
-  shell: df --output=avail -k {{ etcd_backup_local_root_dir }} | tail -n 1
+  shell: df -Pk {{ etcd_backup_local_root_dir }} | tail -n 1 | awk '{print $4}'
   register: local_avail_disk_space
 
 - name: Check available disk space for remote etcd backup
-  local_action: shell df --output=avail -k {{ etcd_backup_remote_root_dir  }} | tail -n 1
+  local_action: shell df -Pk {{ etcd_backup_remote_root_dir  }} | tail -n 1 | awk '{print $4}'
   register: remote_avail_disk_space
   run_once: true
 
