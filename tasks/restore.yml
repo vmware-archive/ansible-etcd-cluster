@@ -1,47 +1,45 @@
 ---
 - block:
-    - name: Sync etcd backup file {{ restore_file_name }} from localhost to all etcd nodes
+    - name: Sync the user-defined etcd backup file from localhost to all etcd nodes
       synchronize:
         use_ssh_args: yes
-        src: "{{ restore_file_path }}/{{ restore_file_name }}"
+        src: "{{ backup_file_path }}/{{ back_file_name }}"
         dest: "{{ etcd_backup_local_root_dir }}"
     
-    - name: Fix backup file {{ restore_file_name }} ownership on all etcd nodes
+    - name: Fix file ownership of the user-defined etcd backup file on all etcd nodes
       file:
-        path: "{{ etcd_backup_local_root_dir }}/{{ restore_file_name }}"
+        path: "{{ etcd_backup_local_root_dir }}/{{ back_file_name }}"
         owner: etcd
         group: root
+    
+    - name: Set etcd_backup_latest_file fact if the user-defined etcd backup file is provided
+      set_fact:
+        etcd_backup_latest_file: "{{ etcd_backup_local_root_dir }}/{{ back_file_name }}"
   become: yes
-  when: restore_file_name is defined and restore_file_path is defined
+  when: back_file_name is defined and backup_file_path is defined
 
-- name: Set etcd_backup_latest_file fact if using file option
-  set_fact:
-    etcd_backup_latest_file: "{{ etcd_backup_local_root_dir }}/{{ restore_file_name }}"
-  when: restore_file_name is defined and restore_file_path is defined
+- block:
+    - name: Get local default backup files if no user-defined etcd backup file is provided
+      become: yes
+      find:
+        path: "{{ etcd_backup_local_root_dir }}"
+        patterns: '*.tgz'
+      register: local_backup_files
+    
+    - name: Abort if no local default etcd backup files are found
+      fail:
+        msg: "No local default backup files found in {{ etcd_backup_local_root_dir }} and no user-defined etcd backup file is provided"
+      when: local_backup_files.files | length == 0
+    
+    - name: Set etcd_backup_latest_file fact if no user-defined etcd backup file is provided
+      set_fact:
+        etcd_backup_latest_file: "{{ local_backup_files.files | sort(attribute='mtime', reverse=true) | map(attribute='path') | first }}"
 
+  when: back_file_name is not defined or backup_file_path is not defined
+  
 - name: Stop etcd-member service on all etcd nodes
   become: yes
   service: name=etcd-member state=stopped
-
-- name: Get local default backup files if restore file option is not defined
-  become: yes
-  find:
-    path: "{{ etcd_backup_local_root_dir }}"
-    patterns: '*.tgz'
-  register: local_backup_files
-  when: restore_file_name is not defined
-
-- name: Abort if no etcd backups are found
-  fail:
-    msg: "No local backup files found in {{ etcd_backup_local_root_dir }} and no bakcup file option is defined"
-  when:
-    - restore_file_name is not defined or restore_file_path is not defined
-    - local_backup_files.files | length == 0
-
-- name: Set etcd_backup_latest_file fact if using default backup file
-  set_fact:
-    etcd_backup_latest_file: "{{ local_backup_files.files | sort(attribute='mtime', reverse=true) | map(attribute='path') | first }}"
-  when: restore_file_name is not defined
 
 - name: Abort if etcd_backup_latest_file is not the same across all etcd nodes
   fail:
