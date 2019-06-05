@@ -1,25 +1,51 @@
 # Copyright (c) 2015 VMware, Inc.
 # SPDX-License-Identifier: MIT OR GPL-3.0-only
 ---
+- name: Abort if there is no enough parameter to get user-defined backup
+  fail:
+    msg: "Require both backup_file_name and backup_file_path to get user-defined backup"
+  when: (backup_file_name is defined and backup_file_path is not defined) or (backup_file_name is not defined and backup_file_path is defined)
+
+- block:
+    - name: Sync the user-defined etcd backup file from localhost to all etcd nodes
+      synchronize:
+        use_ssh_args: yes
+        src: "{{ backup_file_path }}/{{ backup_file_name }}"
+        dest: "{{ etcd_backup_local_root_dir }}"
+    
+    - name: Fix file ownership of the user-defined etcd backup file on all etcd nodes
+      file:
+        path: "{{ etcd_backup_local_root_dir }}/{{ backup_file_name }}"
+        owner: etcd
+        group: root
+    
+    - name: Set etcd_backup_latest_file fact if the user-defined etcd backup file is provided
+      set_fact:
+        etcd_backup_latest_file: "{{ etcd_backup_local_root_dir }}/{{ backup_file_name }}"
+  become: yes
+  when: backup_file_name is defined and backup_file_path is defined
+
+- block:
+    - name: Get local default backup files if no user-defined etcd backup file is provided
+      become: yes
+      find:
+        path: "{{ etcd_backup_local_root_dir }}"
+        patterns: '*.tgz'
+      register: local_backup_files
+    
+    - name: Abort if no local default etcd backup files are found
+      fail:
+        msg: "No local default backup files found in {{ etcd_backup_local_root_dir }} and no user-defined etcd backup file is provided"
+      when: local_backup_files.files | length == 0
+    
+    - name: Set etcd_backup_latest_file fact if no user-defined etcd backup file is provided
+      set_fact:
+        etcd_backup_latest_file: "{{ local_backup_files.files | sort(attribute='mtime', reverse=true) | map(attribute='path') | first }}"
+  when: backup_file_name is not defined or backup_file_path is not defined
+  
 - name: Stop etcd-member service on all etcd nodes
   become: yes
   service: name=etcd-member state=stopped
-
-- name: Get local backup files list
-  become: yes
-  find:
-    path: "{{ etcd_backup_local_root_dir }}"
-    patterns: '*.tgz'
-  register: local_backup_files
-
-- name: Abort if no local etcd backups are found
-  fail:
-    msg: "No local etcd backup files found in {{ etcd_backup_local_root_dir }}"
-  when: local_backup_files.files | length == 0
-
-- name: Set etcd_backup_latest_file fact
-  set_fact:
-    etcd_backup_latest_file: "{{ local_backup_files.files | sort(attribute='mtime', reverse=true) | map(attribute='path') | first }}"
 
 - name: Abort if etcd_backup_latest_file is not the same across all etcd nodes
   fail:
