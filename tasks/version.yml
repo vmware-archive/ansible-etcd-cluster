@@ -6,7 +6,7 @@
 - name: Get etcd version
   become: yes
   command: >
-    {{ etcdctl_cmd_v2 }} -v
+    {{ etcdctl_cmd_v3 }} v
   register: etcdctl
 
 - set_fact:

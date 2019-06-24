@@ -126,9 +126,9 @@
   set_fact:
     etcd_pod_id: "{{ etcd_pods[0] }}"
 
-- name: Set etcdctl_cmd_v2 fact
+- name: Set etcdctl_cmd_v3 fact
   set_fact:
-    etcdctl_cmd_v2: "{{ 'rkt enter ' + etcd_pod_id + ' /usr/local/bin/etcdctl' }}"
+    etcdctl_cmd_v3: "{{ 'rkt enter ' + etcd_pod_id + ' /usr/local/bin/etcdctl' }}"
 
 - name: Pause for 30 seconds to allow etcd cluster to fully come up after the restore
   pause:
@@ -136,4 +136,4 @@
 
 - name: Check etcd cluster health after the restore
   become: yes
-  command: "{{ etcdctl_cmd_v2 }} cluster-health"
+  command: "{{ etcdctl_cmd_v3 }} cluster-health"
