@@ -39,4 +39,4 @@
     - name: Set etcdctl_cmd_v3 fact
       set_fact:
         etcdctl_cmd_v3: "{{ 'rkt enter ' + etcd_pod_id + ' /usr/bin/env ETCDCTL_API=3 /usr/local/bin/etcdctl' }}"
-  when: inventory_hostname == etcd_backup_node_name
+#  when: inventory_hostname == etcd_backup_node_name
