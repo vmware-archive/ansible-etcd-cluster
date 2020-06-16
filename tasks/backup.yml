@@ -69,7 +69,7 @@
       args:
         path: "{{ etcd_backup_remote_dir }}"
         state: directory
-        mode: 0775
+        mode: "{{ etcd_backup_remote_dir_permission }}"
     
     - name: Create local etcd backup directory {{ etcd_backup_dir }} and set correct permissions
       become: yes
