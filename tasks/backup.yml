@@ -45,22 +45,27 @@
 
 - name: Check current etcd disk usage
   become: yes
-  shell: du -k {{ etcd_data_dir }}/member | tail -n 1 | cut -f1
+  shell: du -k {{ etcd_data_dir }}/member/snap/db | tail -n 1 | cut -f1
   register: etcd_disk_usage
 
+# Since on the local etcd node we store one full copy of etcd db plus an archive of that db,
+# setting the multiplier to 1.5 (1 for an extra full copy + 0.5 for the archived copy).
 - name: Abort if insufficient disk space for local etcd backup
   fail:
     msg: >
-      {{ etcd_disk_usage.stdout | int * 3 }} KB disk space required for local etcd backup, but 
+      {{ (etcd_disk_usage.stdout | int * 1.5) | int }} KB disk space required for local etcd backup, but
       {{ local_avail_disk_space.stdout }} KB available.
-  when: (etcd_disk_usage.stdout | int * 3) > (local_avail_disk_space.stdout | int)
+  when: ((etcd_disk_usage.stdout | int * 1.5) | int) > (local_avail_disk_space.stdout | int)
 
+# Since we are only copying an archived copy of etcd db to remote storage, setting the multiplier 0.5.
+# Half of the original size of the db is still very conservative estimate as archive files are usually
+# under 10% of original size of the db.
 - name: Abort if insufficient disk space for remote etcd backup
   fail:
     msg: >
-      {{ etcd_disk_usage.stdout | int * 3 }} KB disk space required for remote etcd backup, but 
+      {{ (etcd_disk_usage.stdout | int * 0.5) | int }} KB disk space required for remote etcd backup, but
       {{ remote_avail_disk_space.stdout }} KB available.
-  when: (etcd_disk_usage.stdout | int * 3) > (remote_avail_disk_space.stdout | int)
+  when: ((etcd_disk_usage.stdout | int * 0.5) | int) > (remote_avail_disk_space.stdout | int)
   run_once: true
 
 - block:
@@ -70,7 +75,7 @@
         path: "{{ etcd_backup_remote_dir }}"
         state: directory
         mode: 0755
-    
+
     - name: Create local etcd backup directory {{ etcd_backup_dir }} and set correct permissions
       become: yes
       file:
@@ -79,13 +84,13 @@
         owner: etcd
         group: root
         mode: 0700
-    
+
     - name: Create etcd v3 data backup file
       become: yes
       # https://coreos.com/etcd/docs/latest/op-guide/recovery.html
       command: >
         {{ etcdctl_cmd_v3 }} snapshot save {{ etcd_backup_dir }}/db
-    
+
     - name: Archive etcd backup directory {{ etcd_backup_dir }} into a compressed tar.gz file
       become: yes
       archive:
@@ -94,13 +99,13 @@
         owner: etcd
         group: root
         mode: 0600
-    
+
     - name: Delete no longer needed etcd backup directory {{ etcd_backup_dir }}
       become: yes
       file:
         path: "{{ etcd_backup_dir }}"
         state: absent
-    
+
     - name: Sync etcd backup file {{ etcd_backup_archive_file }} from {{ etcd_backup_node_name }} to localhost
       become: yes
       synchronize:
@@ -116,7 +121,7 @@
         use_ssh_args: yes
         src: "{{ etcd_backup_remote_dir }}/{{ etcd_backup_archive_file }}"
         dest: "{{ etcd_backup_local_root_dir }}"
-    
+
     - name: Fix backup file {{ etcd_backup_archive_file }} ownership on all etcd nodes except {{ etcd_backup_node_name }}
       file:
         path: "{{ etcd_backup_local_root_dir }}/{{ etcd_backup_archive_file }}"
@@ -146,7 +151,7 @@
         path: "{{ etcd_backup_remote_dir }}"
         patterns: '*.tgz'
       register: remote_backup_files
-    
+
     - name: Delete old remote backups except for the last {{ etcd_backup_keep_remote_files }}
       local_action: file
       args:
