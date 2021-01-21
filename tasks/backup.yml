@@ -48,6 +48,8 @@
   shell: du -k {{ etcd_data_dir }}/member/snap/db | tail -n 1 | cut -f1
   register: etcd_disk_usage
 
+# Since on the local etcd node we store one full copy of etcd db plus an archive of that db,
+# setting the multiplier to 1.5 (1 for an extra full copy + 0.5 for the archived copy).
 - name: Abort if insufficient disk space for local etcd backup
   fail:
     msg: >
@@ -55,6 +57,9 @@
       {{ local_avail_disk_space.stdout }} KB available.
   when: ((etcd_disk_usage.stdout | int * 1.5) | int) > (local_avail_disk_space.stdout | int)
 
+# Since we are only copying an archived copy of etcd db to remote storage, setting the multiplier 0.5.
+# Half of the original size of the db is still very conservative estimate as archive files are usually
+# under 10% of original size of the db.
 - name: Abort if insufficient disk space for remote etcd backup
   fail:
     msg: >
